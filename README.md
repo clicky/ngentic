@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="arc/logo.svg" alt="ngentic logo" width="200" />
+  <img src="art/logo.svg" alt="ngentic logo" width="200" />
 </p>
 
 # ngentic
