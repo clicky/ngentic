@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Tests (Ngentic.Samples)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-samples (debug)",
+      "program": "${env:HOME}/.dotnet/dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}/samples/Ngentic.Samples/Ngentic.Samples.csproj",
+        "--no-build",
+        "--configuration",
+        "Debug"
+      ],
+      "cwd": "${workspaceFolder}/samples/Ngentic.Samples",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "VSTEST_HOST_DEBUG": "0"
+      }
+    },
+    {
+      "name": "Attach to .NET Process",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ]
+}
