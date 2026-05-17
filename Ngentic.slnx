@@ -6,4 +6,7 @@
     <Project Path="src/Ngentic.Core/Ngentic.Core.csproj" />
     <Project Path="src/Ngentic.NUnit/Ngentic.NUnit.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ngentic.Tests/Ngentic.Tests.csproj" />
+  </Folder>
 </Solution>

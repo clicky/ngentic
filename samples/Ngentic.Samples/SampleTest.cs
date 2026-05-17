@@ -34,16 +34,17 @@ public sealed class CalculatorAgentTests : AgenticTestBase
     }
 
     [Test]
+    [MaxTurns(4)]
     public async Task Agent_uses_calculator_to_add()
     {
         AgentRun run = await Agent
             .WithSystemPrompt("You are a math assistant.")
             .WithAllowedTools("mcp__calculator__*")
-            .WithMaxTurns(4)
             .RunAsync("What is 2 + 3?");
 
-        Expect.That(run).CalledTool("mcp__calculator__add").AtLeastOnce();
-        Expect.That(run).HasCount(1);
-        Expect.That(run.FinalOutput).Contains("5");
+        Assert.That(run, Did.CallTool("mcp__calculator__add").WithArg("a", 2).WithArg("b", 3));
+        Assert.That(run, Did.NotCallTool("mcp__calculator__divide"));
+        Assert.That(run, Did.MakeToolCalls.Exactly(1));
+        Assert.That(run.FinalOutput, Does.Contain("5"));
     }
 }

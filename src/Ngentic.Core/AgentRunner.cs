@@ -7,26 +7,39 @@ namespace Ngentic;
 
 public sealed class AgentRunner
 {
-    private readonly IChatClient _client;
+    private readonly IChatClient _innerClient;
     private readonly IList<AITool> _tools;
     private readonly string? _systemPrompt;
     private readonly int _maxTurns;
+    private readonly string? _modelId;
 
     public AgentRunner(
         IChatClient client,
         IList<AITool> tools,
         string? systemPrompt = null,
-        int maxTurns = 16)
+        int maxTurns = 16,
+        string? modelId = null)
     {
-        _client = client;
+        _innerClient = client;
         _tools = tools;
         _systemPrompt = systemPrompt;
         _maxTurns = maxTurns;
+        _modelId = modelId;
     }
 
     public async Task<AgentRun> RunAsync(string prompt, CancellationToken ct = default)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+
+        // Wrap the caller's IChatClient so MEAI invokes tools on the model's behalf.
+        // Without this, FunctionCallContent comes back from the model but nothing
+        // executes the AITool — the loop would spin until max turns with no progress.
+        FunctionInvokingChatClient functionClient = new FunctionInvokingChatClient(_innerClient)
+        {
+            MaximumIterationsPerRequest = _maxTurns,
+            AllowConcurrentInvocation = false,
+        };
+
         List<ChatMessage> messages = new();
         if (!string.IsNullOrEmpty(_systemPrompt))
         {
@@ -34,81 +47,73 @@ public sealed class AgentRunner
         }
         messages.Add(new ChatMessage(ChatRole.User, prompt));
 
-        List<ToolCall> toolCalls = new();
         ChatOptions options = new()
         {
             Tools = _tools,
             ToolMode = ChatToolMode.Auto,
+            ModelId = _modelId,
         };
 
+        ChatResponse response = await functionClient.GetResponseAsync(messages, options, ct);
+
+        List<ToolCall> toolCalls = new();
         StringBuilder finalText = new();
-        int turn = 0;
-        bool hitLimit = false;
 
-        while (turn < _maxTurns)
+        foreach (ChatMessage msg in response.Messages)
         {
-            turn++;
-            ChatResponse response = await _client.GetResponseAsync(messages, options, ct);
-            foreach (ChatMessage msg in response.Messages)
+            foreach (AIContent content in msg.Contents)
             {
-                messages.Add(msg);
-                foreach (AIContent content in msg.Contents)
+                switch (content)
                 {
-                    switch (content)
-                    {
-                        case FunctionCallContent call:
-                            // Tool invocation is handled by FunctionInvokingChatClient downstream;
-                            // we record the call shape here. Result is filled below.
-                            toolCalls.Add(new ToolCall
+                    case FunctionCallContent call:
+                        toolCalls.Add(new ToolCall
+                        {
+                            CallId = call.CallId,
+                            Name = call.Name,
+                            Arguments = SerializeArgs(call.Arguments),
+                            Result = "",
+                            IsError = false,
+                        });
+                        break;
+                    case FunctionResultContent result:
+                        int idx = toolCalls.FindIndex(t => t.CallId == result.CallId);
+                        if (idx >= 0)
+                        {
+                            ToolCall existing = toolCalls[idx];
+                            toolCalls[idx] = new ToolCall
                             {
-                                Name = call.Name,
-                                Arguments = SerializeArgs(call.Arguments),
-                                Result = "",
-                                IsError = false,
-                            });
-                            break;
-                        case FunctionResultContent result:
-                            int idx = toolCalls.FindLastIndex(t => t.Result == "" && t.Name != "");
-                            if (idx >= 0)
-                            {
-                                toolCalls[idx] = new ToolCall
-                                {
-                                    Name = toolCalls[idx].Name,
-                                    Arguments = toolCalls[idx].Arguments,
-                                    Result = result.Result?.ToString() ?? "",
-                                    IsError = result.Exception != null,
-                                };
-                            }
-                            break;
-                        case TextContent text:
+                                CallId = existing.CallId,
+                                Name = existing.Name,
+                                Arguments = existing.Arguments,
+                                Result = result.Result?.ToString() ?? "",
+                                IsError = result.Exception != null,
+                            };
+                        }
+                        break;
+                    case TextContent text:
+                        if (msg.Role == ChatRole.Assistant)
+                        {
                             finalText.Append(text.Text);
-                            break;
-                    }
+                        }
+                        break;
                 }
-            }
-
-            bool moreWork = response.Messages
-                .SelectMany(m => m.Contents)
-                .Any(c => c is FunctionCallContent);
-
-            if (!moreWork)
-            {
-                break;
-            }
-            if (turn >= _maxTurns)
-            {
-                hitLimit = true;
             }
         }
 
         stopwatch.Stop();
+
+        int turns = Math.Max(1, response.Messages.Count(m => m.Role == ChatRole.Assistant));
+        bool hitLimit = turns >= _maxTurns
+            && response.Messages.Any(m => m.Contents.OfType<FunctionCallContent>().Any()
+                && !response.Messages.Any(r => r.Contents.OfType<FunctionResultContent>().Any()));
+
         return new AgentRun
         {
             Prompt = prompt,
             ToolCalls = toolCalls,
             FinalOutput = finalText.ToString(),
             Duration = stopwatch.Elapsed,
-            Turns = turn,
+            Turns = turns,
             HitTurnLimit = hitLimit,
         };
     }
