@@ -2,9 +2,9 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
-
+    <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -18,7 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Ngentic.NUnit\Ngentic.NUnit.csproj" />
+    <ProjectReference Include="../../src/Ngentic.Core/Ngentic.Core.csproj" />
+    <ProjectReference Include="../../src/Ngentic.NUnit/Ngentic.NUnit.csproj" />
   </ItemGroup>
 
 </Project>
