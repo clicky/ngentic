@@ -101,7 +101,7 @@ public sealed class JsonArrayLengthConstraint : Constraint
     }
 }
 
-internal static class JsonHelpers
+public static class JsonHelpers
 {
     public static bool TryGetElement(object? actual, out JsonElement element)
     {
