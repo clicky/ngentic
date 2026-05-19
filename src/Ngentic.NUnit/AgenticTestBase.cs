@@ -94,6 +94,8 @@ public sealed class AgentBuilder
     private string? _model;
     private double? _maxBudgetUsd;
     private readonly List<string> _allowedTools = new();
+    private string? _builtinTools;
+    private string? _workingDirectory;
     // _maxTurns is preserved for [MaxTurns] reporting but the CLI uses --max-budget-usd
     // rather than a hard turn cap; it gets stashed into AgentRun.Metadata.
     private readonly int? _maxTurns;
@@ -136,6 +138,32 @@ public sealed class AgentBuilder
         return this;
     }
 
+    /// <summary>
+    /// Forwarded to the CLI as <c>--tools</c>. Pass <c>""</c> to disable all
+    /// built-in tools (Read, Edit, Bash, …) — useful when the test only needs
+    /// MCP tools and you want to keep deferred-tool mode from triggering.
+    /// </summary>
+    public AgentBuilder WithBuiltinTools(string value)
+    {
+        _builtinTools = value;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the working directory for the spawned CLI. Important when the
+    /// test process runs inside a repo whose <c>~/.claude.json</c> has a
+    /// same-named MCP server registered but not in
+    /// <c>enabledMcpjsonServers</c> — that shadows <c>--mcp-config</c> as
+    /// "disabled" even under <c>--strict-mcp-config</c>. Pointing the CLI at
+    /// a neutral directory (e.g. the test's isolated temp dir) avoids the
+    /// collision.
+    /// </summary>
+    public AgentBuilder WithWorkingDirectory(string path)
+    {
+        _workingDirectory = path;
+        return this;
+    }
+
     public async Task<AgentRun> RunAsync(string prompt, CancellationToken ct = default)
     {
         ClaudeAgentRequest request = new(
@@ -144,7 +172,9 @@ public sealed class AgentBuilder
             AllowedTools: _allowedTools,
             SystemPromptAppend: _systemPromptAppend,
             Model: _model ?? _defaultModel,
-            MaxBudgetUsd: _maxBudgetUsd ?? _defaultMaxBudgetUsd);
+            MaxBudgetUsd: _maxBudgetUsd ?? _defaultMaxBudgetUsd,
+            BuiltinTools: _builtinTools,
+            WorkingDirectory: _workingDirectory);
 
         AgentRun run = await ClaudeAgent.RunAsync(request, ct).ConfigureAwait(false);
 

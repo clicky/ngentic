@@ -49,6 +49,15 @@ public static class ClaudeAgent
             psi.ArgumentList.Add("--allowedTools");
             psi.ArgumentList.Add(string.Join(" ", request.AllowedTools));
         }
+        // Setting --tools shrinks the built-in tool surface so deferred-tool
+        // mode (ToolSearch) doesn't kick in. Pass "" to disable all builtins;
+        // tests that only need MCP tools should do this to keep trajectories
+        // deterministic.
+        if (request.BuiltinTools is not null)
+        {
+            psi.ArgumentList.Add("--tools");
+            psi.ArgumentList.Add(request.BuiltinTools);
+        }
         if (request.SystemPromptAppend is not null)
         {
             psi.ArgumentList.Add("--append-system-prompt");
@@ -135,4 +144,5 @@ public sealed record ClaudeAgentRequest(
     string? SystemPromptAppend = null,
     string? Model = null,
     double MaxBudgetUsd = 0.50,
-    string? WorkingDirectory = null);
+    string? WorkingDirectory = null,
+    string? BuiltinTools = null);
